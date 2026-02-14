@@ -137,8 +137,44 @@ def main():
             else:
                 st.sidebar.warning("Please enter a command!")
 
+        # Automatic Insights
+        st.header("Automatic Insights")
+        ig = InsightGenerator(df)
+        insights = ig.generate_summary()
+        st.text_area("Insights", insights, height=150)
 
+        # Error Detection
+        st.header("Error Detection")
+        ed = ErrorDetector(df)
+        missing = ed.detect_missing_values()
+        inconsistencies = ed.detect_formula_inconsistencies()
+        if not missing.empty:
+            st.error(f"Missing Values Detected:\n{missing}")
         else:
+            st.success("No missing values detected.")
+        if inconsistencies:
+            st.error(f"Inconsistencies Detected:\n{inconsistencies}")
+        else:
+            st.success("No inconsistencies detected.")
+
+        # Automation Rules
+        st.header("Automation Rules")
+        ae = AutomationEngine(df)
+        low_marks = ae.highlight_low_marks()
+        if not low_marks.empty:
+            st.warning(f"Marks below threshold:\n{low_marks}")
+
+        low_stock = ae.highlight_low_stock()
+        if not low_stock.empty:
+            st.warning(f"Stock below threshold:\n{low_stock}")
+
+        # Bar Chart
+        chart_col = st.selectbox("Select column for bar chart", df.columns)
+        if st.button("Create Bar Chart"):
+            ae.plot_bar_chart(chart_col)
+            st.image("bar_chart.png")
+
+    else:
         # Show message when no file is uploaded
         st.info("👆 Please upload an Excel file to get started")
         
