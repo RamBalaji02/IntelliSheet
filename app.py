@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from models.filtering import SmartFilter
-from models.voice_commands import VoiceCommandProcessor
+from models.text_commands import TextCommandProcessor
 from models.insights import InsightGenerator
 from models.error_detection import ErrorDetector
 from models.automation import AutomationEngine
@@ -49,93 +49,66 @@ def main():
             except Exception as e:
                 st.error(f"Error applying filter: {e}")
 
-        # Voice Command Section
-        st.sidebar.header("Voice Commands")
+        # Text Command Section
+        st.sidebar.header("Text Commands")
         
-        # Initialize session state for voice command
-        if 'listening' not in st.session_state:
-            st.session_state.listening = False
-            st.session_state.command_result = None
+        # Initialize text command processor
+        tcp = TextCommandProcessor()
         
-        # Show voice command status
-        vcp = VoiceCommandProcessor()
-        st.sidebar.info(vcp.get_status_message())
+        # Show command examples
+        with st.sidebar.expander("Command Examples"):
+            for example in tcp.get_command_examples():
+                st.code(example)
         
-        # Voice command button with status
-        if st.sidebar.button("🎤 Start Voice Command", 
-                           disabled=st.session_state.listening,
-                           help="Click and speak your command"):
-            st.session_state.listening = True
-            st.session_state.command_result = None
-            
-            # Show recording status
-            with st.sidebar:
-                status = st.empty()
-                status.info("🎤 Listening... Speak now")
-                
-                try:
-                    # Process voice command
-                    command_text = vcp.listen_and_recognize()
-                    
-                    if command_text:
-                        status.success("✅ Processing command...")
-                        st.session_state.command_result = {
-                            'text': command_text,
-                            'action': vcp.process_command(command_text)
-                        }
-                    else:
-                        status.warning("🔇 No speech detected. Please try again.")
+        # Command input
+        command_input = st.sidebar.text_input(
+            "Enter command:",
+            placeholder="e.g., filter marks > 80",
+            help="Type your command and press Enter"
+        )
+        
+        # Process command button
+        if st.sidebar.button("Execute Command") or command_input:
+            if command_input.strip():
+                with st.sidebar:
+                    with st.spinner("Processing command..."):
+                        result = tcp.process_command(command_input, df)
                         
-                except Exception as e:
-                    status.error(f"❌ Error processing voice command: {str(e)}")
-                    st.error(f"Error: {str(e)}")
-                finally:
-                    st.session_state.listening = False
-                    st.rerun()
-        
-        # Display command results
-        if st.session_state.command_result:
-            result = st.session_state.command_result
-            st.sidebar.write("### Last Command")
-            st.sidebar.write(f"**You said:** {result['text']}")
-            
-            # Process the command
-            action = result['action']
-            if action["action"] == "filter":
-                try:
-                    sf = SmartFilter(df)
-                    filtered_df = sf.apply_filter(action["conditions"], action["logic"])
-                    st.sidebar.success("✅ Filter applied successfully!")
-                    st.write("### Filtered Data (Voice Command)", filtered_df)
-                except Exception as e:
-                    st.sidebar.error(f"❌ Error applying filter: {str(e)}")
-                    
-            elif action["action"] == "chart":
-                try:
-                    ae = AutomationEngine(df)
-                    chart_path = ae.plot_bar_chart(action["column"])
-                    if chart_path and os.path.exists(chart_path):
-                        st.sidebar.success("✅ Chart generated successfully!")
-                        st.write(f"### Bar Chart for {action['column']}")
-                        st.image(chart_path)
-                    else:
-                        st.sidebar.error("❌ Failed to generate chart")
-                except Exception as e:
-                    st.sidebar.error(f"❌ Error creating chart: {str(e)}")
-                    
-            elif action["action"] == "unknown":
-                st.sidebar.warning("⚠️ Command not recognized. Try saying things like 'show students above 80' or 'create bar chart for marks'")
-        
-        # Voice Command Help
-        with st.sidebar.expander("Voice Command Examples"):
-            st.markdown("""
-            **Try saying:**
-            - "Show students above 80"
-            - "Create bar chart for marks"
-            - "Filter where age greater than 20"
-            
-            **Note:** Make sure your microphone is connected and you're in a quiet environment.
-            """)
+                        if result["action"] == "filter":
+                            st.success(result["message"])
+                            st.write("### Filtered Results", result["data"])
+                            
+                            # Save filtered results
+                            result["data"].to_excel("filtered_results.xlsx", index=False)
+                            st.download_button(
+                                "Download Filtered Excel",
+                                data=open("filtered_results.xlsx", "rb").read(),
+                                file_name="filtered_results.xlsx"
+                            )
+                        
+                        elif result["action"] == "chart":
+                            st.success(f"Creating chart for {result['column']}...")
+                            ae = AutomationEngine(df)
+                            chart_path = ae.plot_bar_chart(result["column"])
+                            if chart_path:
+                                st.write(f"### Chart for {result['column']}")
+                                st.image(chart_path)
+                        
+                        elif result["action"] == "highlight":
+                            st.info(result["message"])
+                            if not result["data"].empty:
+                                st.write("### Highlighted Rows", result["data"])
+                        
+                        elif result["action"] == "summary":
+                            st.success("Analysis complete!")
+                            st.write("### Data Summary")
+                            st.json(result["data"])
+                        
+                        elif result["action"] == "error":
+                            st.error(result["message"])
+                        
+                        elif result["action"] == "unknown":
+                            st.warning(result["message"])
 
 
         # Automatic Insights
