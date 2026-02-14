@@ -126,6 +126,19 @@ def main():
                                 st.write("### Data Summary")
                                 st.json(result["data"])
                             
+                            elif result["action"] == "remove_column":
+                                st.success(result["message"])
+                                st.write(f"### Updated Data (Column '{result['removed_column']}' removed)")
+                                st.write(result["data"])
+                                
+                                # Save updated dataframe
+                                result["data"].to_excel("updated_data.xlsx", index=False)
+                                st.download_button(
+                                    "Download Updated Excel",
+                                    data=open("updated_data.xlsx", "rb").read(),
+                                    file_name="updated_data.xlsx"
+                                )
+                            
                             elif result["action"] == "error":
                                 st.error(result["message"])
                             

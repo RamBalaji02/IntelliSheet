@@ -9,7 +9,10 @@ class TextCommandProcessor:
             "create chart for marks column",
             "highlight low marks below 40",
             "filter age > 20",
-            "show rows where score >= 85"
+            "show rows where score >= 85",
+            "remove column name",
+            "delete column age",
+            "drop column address"
         ]
     
     def process_command(self, command_text: str, df):
@@ -36,6 +39,10 @@ class TextCommandProcessor:
         # Highlight commands
         elif 'highlight' in command or 'mark' in command:
             return self._process_highlight_command(command, df)
+        
+        # Column removal commands
+        elif 'remove' in command or 'delete' in command or 'drop' in command:
+            return self._process_remove_column_command(command, df)
         
         # Summary commands
         elif 'summary' in command or 'insights' in command or 'analyze' in command:
@@ -184,6 +191,62 @@ class TextCommandProcessor:
                 
         except Exception as e:
             return {"action": "error", "message": f"Highlight error: {str(e)}"}
+    
+    def _process_remove_column_command(self, command, df):
+        """Process column removal commands."""
+        try:
+            # Extract column name from command
+            command = command.lower()
+            
+            # Different patterns for column removal
+            patterns = [
+                r"remove column (\w+)",
+                r"delete column (\w+)",
+                r"drop column (\w+)",
+                r"remove (\w+) column",
+                r"delete (\w+) column",
+                r"drop (\w+) column"
+            ]
+            
+            column_name = None
+            for pattern in patterns:
+                match = re.search(pattern, command)
+                if match:
+                    column_name = match.group(1)
+                    break
+            
+            if not column_name:
+                return {"action": "error", "message": "Could not parse column name. Use: 'remove column name'"}
+            
+            # Find the actual column in dataframe (case-insensitive)
+            found_column = None
+            for col in df.columns:
+                if column_name.lower() == col.lower():
+                    found_column = col
+                    break
+            
+            if not found_column:
+                # Try partial match
+                for col in df.columns:
+                    if column_name.lower() in col.lower():
+                        found_column = col
+                        break
+            
+            if not found_column:
+                return {"action": "error", "message": f"Column '{column_name}' not found in dataset"}
+            
+            # Remove the column
+            new_df = df.drop(columns=[found_column])
+            
+            return {
+                "action": "remove_column",
+                "data": new_df,
+                "removed_column": found_column,
+                "message": f"Removed column '{found_column}' successfully. New dataset has {len(new_df.columns)} columns."
+            }
+            
+        except Exception as e:
+            return {"action": "error", "message": f"Column removal error: {str(e)}"}
     
     def get_command_examples(self):
         """Get list of example commands."""
