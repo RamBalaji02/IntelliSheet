@@ -11,12 +11,19 @@ from models.automation import AutomationEngine
 
 def main():
     st.title("IntelliSheet - AI Powered Spreadsheet Assistant")
+    
+    # Initialize session state
+    if 'file_uploaded' not in st.session_state:
+        st.session_state.file_uploaded = False
+    if 'df' not in st.session_state:
+        st.session_state.df = None
 
     uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 
     # Only show features if file is uploaded
     if uploaded_file:
         try:
+            st.info(f"📁 File uploaded: {uploaded_file.name}")
             df = pd.read_excel(uploaded_file)
             st.write("### Uploaded Data", df)
             
@@ -27,6 +34,8 @@ def main():
         except Exception as e:
             st.error(f"Error reading Excel file: {e}")
             st.session_state.file_uploaded = False
+    else:
+        st.info("📂 No file uploaded yet. Please select an Excel file above.")
     
     # Check if file is uploaded before showing features
     if 'file_uploaded' not in st.session_state:
