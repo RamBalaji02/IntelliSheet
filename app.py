@@ -14,9 +14,26 @@ def main():
 
     uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 
+    # Only show features if file is uploaded
     if uploaded_file:
-        df = pd.read_excel(uploaded_file)
-        st.write("### Uploaded Data", df)
+        try:
+            df = pd.read_excel(uploaded_file)
+            st.write("### Uploaded Data", df)
+            
+            # Store dataframe in session state
+            st.session_state.df = df
+            st.session_state.file_uploaded = True
+            
+        except Exception as e:
+            st.error(f"Error reading Excel file: {e}")
+            st.session_state.file_uploaded = False
+    
+    # Check if file is uploaded before showing features
+    if 'file_uploaded' not in st.session_state:
+        st.session_state.file_uploaded = False
+    
+    if st.session_state.file_uploaded and 'df' in st.session_state:
+        df = st.session_state.df
 
         # Smart Filtering
         st.sidebar.header("Smart Filtering")
@@ -70,83 +87,69 @@ def main():
         # Process command button
         if st.sidebar.button("Execute Command") or command_input:
             if command_input.strip():
+                if 'df' not in st.session_state:
+                    st.sidebar.error("Please upload an Excel file first!")
+                    return
+                    
                 with st.sidebar:
                     with st.spinner("Processing command..."):
-                        result = tcp.process_command(command_input, df)
-                        
-                        if result["action"] == "filter":
-                            st.success(result["message"])
-                            st.write("### Filtered Results", result["data"])
+                        try:
+                            result = tcp.process_command(command_input, df)
                             
-                            # Save filtered results
-                            result["data"].to_excel("filtered_results.xlsx", index=False)
-                            st.download_button(
-                                "Download Filtered Excel",
-                                data=open("filtered_results.xlsx", "rb").read(),
-                                file_name="filtered_results.xlsx"
-                            )
-                        
-                        elif result["action"] == "chart":
-                            st.success(f"Creating chart for {result['column']}...")
-                            ae = AutomationEngine(df)
-                            chart_path = ae.plot_bar_chart(result["column"])
-                            if chart_path:
-                                st.write(f"### Chart for {result['column']}")
-                                st.image(chart_path)
-                        
-                        elif result["action"] == "highlight":
-                            st.info(result["message"])
-                            if not result["data"].empty:
-                                st.write("### Highlighted Rows", result["data"])
-                        
-                        elif result["action"] == "summary":
-                            st.success("Analysis complete!")
-                            st.write("### Data Summary")
-                            st.json(result["data"])
-                        
-                        elif result["action"] == "error":
-                            st.error(result["message"])
-                        
-                        elif result["action"] == "unknown":
-                            st.warning(result["message"])
+                            if result["action"] == "filter":
+                                st.success(result["message"])
+                                st.write("### Filtered Results", result["data"])
+                                
+                                # Save filtered results
+                                result["data"].to_excel("filtered_results.xlsx", index=False)
+                                st.download_button(
+                                    "Download Filtered Excel",
+                                    data=open("filtered_results.xlsx", "rb").read(),
+                                    file_name="filtered_results.xlsx"
+                                )
+                            
+                            elif result["action"] == "chart":
+                                st.success(f"Creating chart for {result['column']}...")
+                                ae = AutomationEngine(df)
+                                chart_path = ae.plot_bar_chart(result["column"])
+                                if chart_path:
+                                    st.write(f"### Chart for {result['column']}")
+                                    st.image(chart_path)
+                            
+                            elif result["action"] == "highlight":
+                                st.info(result["message"])
+                                if not result["data"].empty:
+                                    st.write("### Highlighted Rows", result["data"])
+                            
+                            elif result["action"] == "summary":
+                                st.success("Analysis complete!")
+                                st.write("### Data Summary")
+                                st.json(result["data"])
+                            
+                            elif result["action"] == "error":
+                                st.error(result["message"])
+                            
+                            elif result["action"] == "unknown":
+                                st.warning(result["message"])
+                                
+                        except Exception as e:
+                            st.error(f"Error processing command: {str(e)}")
+            else:
+                st.sidebar.warning("Please enter a command!")
 
 
-        # Automatic Insights
-        st.header("Automatic Insights")
-        ig = InsightGenerator(df)
-        insights = ig.generate_summary()
-        st.text_area("Insights", insights, height=150)
-
-        # Error Detection
-        st.header("Error Detection")
-        ed = ErrorDetector(df)
-        missing = ed.detect_missing_values()
-        inconsistencies = ed.detect_formula_inconsistencies()
-        if not missing.empty:
-            st.error(f"Missing Values Detected:\n{missing}")
         else:
-            st.success("No missing values detected.")
-        if inconsistencies:
-            st.error(f"Inconsistencies Detected:\n{inconsistencies}")
-        else:
-            st.success("No inconsistencies detected.")
-
-        # Automation Rules
-        st.header("Automation Rules")
-        ae = AutomationEngine(df)
-        low_marks = ae.highlight_low_marks()
-        if not low_marks.empty:
-            st.warning(f"Marks below threshold:\n{low_marks}")
-
-        low_stock = ae.highlight_low_stock()
-        if not low_stock.empty:
-            st.warning(f"Stock below threshold:\n{low_stock}")
-
-        # Bar Chart
-        chart_col = st.selectbox("Select column for bar chart", df.columns)
-        if st.button("Create Bar Chart"):
-            ae.plot_bar_chart(chart_col)
-            st.image("bar_chart.png")
+        # Show message when no file is uploaded
+        st.info("👆 Please upload an Excel file to get started")
+        
+        # Show command examples even without file
+        st.sidebar.header("Text Commands")
+        tcp = TextCommandProcessor()
+        with st.sidebar.expander("Command Examples"):
+            for example in tcp.get_command_examples():
+                st.code(example)
+        
+        st.sidebar.info("💡 Upload an Excel file above to enable all features")
 
 
 if __name__ == '__main__':
